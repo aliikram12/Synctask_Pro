@@ -1,3 +1,4 @@
+const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const generateToken = require('../utils/generateToken');
 
@@ -70,11 +71,41 @@ const registerUser = async (req, res, next) => {
 // @route   POST /api/users/logout
 // @access  Public
 const logoutUser = (req, res) => {
-  res.cookie('jwt', '', {
-    httpOnly: true,
-    expires: new Date(0),
-  });
+  res.cookie('jwt', '', { httpOnly: true, expires: new Date(0) });
+  res.cookie('refresh', '', { httpOnly: true, expires: new Date(0) });
   res.status(200).json({ message: 'Logged out successfully' });
+};
+
+// @desc    Refresh access token
+// @route   POST /api/users/refresh
+// @access  Public (requires refresh cookie)
+const refreshToken = async (req, res, next) => {
+  try {
+    const token = req.cookies.refresh;
+    if (!token) {
+      res.status(401);
+      throw new Error('No refresh token');
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET);
+    const user = await User.findById(decoded.userId);
+    if (!user) {
+      res.status(401);
+      throw new Error('User not found');
+    }
+
+    generateToken(res, user._id);
+    res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      avatar: user.avatar,
+    });
+  } catch (error) {
+    res.status(401);
+    next(error);
+  }
 };
 
 // @desc    Get user profile
@@ -106,4 +137,5 @@ module.exports = {
   registerUser,
   logoutUser,
   getUserProfile,
+  refreshToken,
 };

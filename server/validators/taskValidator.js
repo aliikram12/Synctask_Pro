@@ -8,7 +8,7 @@ const createTaskSchema = z.object({
     status: z.enum(['Pending', 'In Progress', 'Completed']).optional(),
     priority: z.enum(['Low', 'Medium', 'High', 'Urgent']).optional(),
     assignees: z.array(z.string()).optional(),
-    dueDate: z.string().datetime().optional(),
+    dueDate: z.union([z.string(), z.date()]).optional(),
     labels: z.array(z.string()).optional(),
   }),
 });
