@@ -19,7 +19,7 @@ const connectDB = async () => {
     if (error.message?.includes('ECONNREFUSED') || error.name === 'MongooseServerSelectionError') {
       throw new Error(
         `Cannot connect to MongoDB at ${uri}\n` +
-          '→ Is MongoDB running locally? Start it or use MongoDB Atlas and update MONGO_URI in .env'
+          '→ Run: cd server && npm run db:start   (or start MongoDB Windows service)'
       );
     }
     throw new Error(`MongoDB connection failed: ${error.message}`);

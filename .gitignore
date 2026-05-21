@@ -1,0 +1,6 @@
+node_modules/
+data/mongo/
+data/mongo-log/
+.env
+dist/
+*.log

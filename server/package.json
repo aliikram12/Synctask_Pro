@@ -5,6 +5,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "db:check": "node scripts/check-mongo.js",
+    "db:start": "powershell -ExecutionPolicy Bypass -File scripts/start-mongo.ps1",
     "test": "jest --detectOpenHandles --forceExit"
   },
   "keywords": [],

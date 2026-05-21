@@ -4,6 +4,8 @@
   "private": true,
   "description": "Enterprise real-time collaborative task management",
   "scripts": {
+    "db:start": "cd server && npm run db:start",
+    "db:check": "cd server && npm run db:check",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "dev:server": "cd server && npm run dev",

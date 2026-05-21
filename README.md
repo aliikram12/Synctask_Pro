@@ -30,14 +30,20 @@ Enterprise-level real-time collaborative task management — modern SaaS UI, off
 
 ### Start MongoDB (pick one)
 
-**Option A — Docker (recommended):**
+**Option A — Local (Windows, already installed):**
+```powershell
+cd server
+npm run db:start    # starts mongod using project data/ folder
+npm run db:check    # verify connection
+```
+
+**Option B — Docker:**
 ```bash
-# From project root
 docker compose up -d
 ```
 
-**Option B — MongoDB Atlas:**  
-Create a free cluster, copy the connection string into `server/.env` as `MONGO_URI`.
+**Option C — MongoDB Atlas:**  
+Use a cloud connection string in `server/.env` as `MONGO_URI`.
 
 ### 1. Backend
 
