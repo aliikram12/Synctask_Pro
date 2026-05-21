@@ -27,7 +27,7 @@ api.interceptors.response.use(
       !originalRequest._retry &&
       !originalRequest.url?.includes('/users/auth') &&
       !originalRequest.url?.includes('/users/refresh') &&
-      !originalRequest.url?.includes('/users')
+      !originalRequest.url?.match(/\/users\/?$/)
     ) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {

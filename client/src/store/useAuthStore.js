@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { getProfile, refreshSession, logout as logoutApi } from '../services/authService';
+import useWorkspaceStore from './useWorkspaceStore';
 
 const useAuthStore = create(
   persist(
@@ -33,7 +34,6 @@ const useAuthStore = create(
           await logoutApi();
         } catch {}
         set({ user: null, isAuthenticated: false });
-        const { default: useWorkspaceStore } = await import('./useWorkspaceStore');
         useWorkspaceStore.getState().clearWorkspaces();
       },
     }),
