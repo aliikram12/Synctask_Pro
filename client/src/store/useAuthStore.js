@@ -33,6 +33,8 @@ const useAuthStore = create(
           await logoutApi();
         } catch {}
         set({ user: null, isAuthenticated: false });
+        const { default: useWorkspaceStore } = await import('./useWorkspaceStore');
+        useWorkspaceStore.getState().clearWorkspaces();
       },
     }),
     { name: 'auth-storage', partialize: (state) => ({ user: state.user, isAuthenticated: state.isAuthenticated }) }

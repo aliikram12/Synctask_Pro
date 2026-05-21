@@ -103,6 +103,16 @@ const getMembers = async (req, res, next) => {
       res.status(404);
       throw new Error('Workspace not found');
     }
+
+    const uid = req.user._id.toString();
+    const isMember =
+      workspace.owner._id.toString() === uid ||
+      workspace.members.some((m) => m.userId?._id?.toString() === uid);
+    if (!isMember) {
+      res.status(403);
+      throw new Error('Not authorized');
+    }
+
     res.json({ owner: workspace.owner, members: workspace.members });
   } catch (error) {
     next(error);

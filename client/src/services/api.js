@@ -1,23 +1,60 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
-  withCredentials: true, // For sending cookies
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  baseURL: import.meta.env.VITE_API_URL || '/api',
+  withCredentials: true,
+  headers: { 'Content-Type': 'application/json' },
 });
 
-// Response interceptor to handle errors globally
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error) => {
+  failedQueue.forEach((prom) => {
+    if (error) prom.reject(error);
+    else prom.resolve();
+  });
+  failedQueue = [];
+};
+
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    // Check if error is 401 Unauthorized
-    if (error.response && error.response.status === 401) {
-      // Handle unauthorized (e.g., redirect to login or clear auth state)
-      // We will dispatch a custom event that our AuthStore can listen to
+  async (error) => {
+    const originalRequest = error.config;
+
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      !originalRequest.url?.includes('/users/auth') &&
+      !originalRequest.url?.includes('/users/refresh') &&
+      !originalRequest.url?.includes('/users')
+    ) {
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        }).then(() => api(originalRequest));
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        await api.post('/users/refresh');
+        processQueue(null);
+        return api(originalRequest);
+      } catch (refreshError) {
+        processQueue(refreshError);
+        window.dispatchEvent(new Event('auth:unauthorized'));
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
+      }
+    }
+
+    if (error.response?.status === 401) {
       window.dispatchEvent(new Event('auth:unauthorized'));
     }
+
     return Promise.reject(error);
   }
 );

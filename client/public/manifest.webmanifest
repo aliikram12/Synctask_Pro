@@ -1,0 +1,17 @@
+{
+  "name": "SyncTask Pro",
+  "short_name": "SyncTask",
+  "description": "Enterprise real-time collaborative task management",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#4f46e5",
+  "icons": [
+    {
+      "src": "/icons.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
