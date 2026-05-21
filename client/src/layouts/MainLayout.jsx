@@ -8,8 +8,9 @@ import {
   LogOut, LayoutDashboard, CheckSquare, Bell, Settings, Sun, Moon,
   Menu, X, ChevronDown, Plus, Users, Wifi, WifiOff
 } from 'lucide-react';
-import api from '../services/api';
 import toast from 'react-hot-toast';
+import NotificationPanel from '../components/NotificationPanel';
+import useNotificationStore from '../store/useNotificationStore';
 
 const NavItem = ({ to, icon: Icon, label, active }) => (
   <Link
@@ -34,12 +35,19 @@ const MainLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [wsDropdownOpen, setWsDropdownOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const fetchNotifications = useNotificationStore((s) => s.fetchNotifications);
+  const unreadCount = useNotificationStore((s) => s.unreadCount);
 
   useEffect(() => { initTheme(); }, [initTheme]);
 
   useEffect(() => {
     fetchWorkspaces();
   }, [fetchWorkspaces]);
+
+  useEffect(() => {
+    if (user) fetchNotifications();
+  }, [user, fetchNotifications]);
 
   useEffect(() => {
     const onOn = () => setIsOnline(true);
@@ -50,10 +58,7 @@ const MainLayout = () => {
   }, []);
 
   const handleLogout = async () => {
-    try {
-      await api.post('/users/logout');
-    } catch {}
-    logout();
+    await logout();
     toast.success('Logged out');
     navigate('/login');
   };
@@ -219,14 +224,19 @@ const MainLayout = () => {
             </h2>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 relative">
             <button
+              onClick={() => setNotifOpen(!notifOpen)}
               className="relative p-2 text-surface-500 hover:text-surface-700 dark:text-surface-400 dark:hover:text-surface-300 transition-colors"
               aria-label="Notifications"
+              aria-expanded={notifOpen}
             >
               <Bell className="h-5 w-5" />
-              <span className="absolute top-1.5 right-1.5 h-2 w-2 bg-danger-500 rounded-full" />
+              {unreadCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 h-2 w-2 bg-danger-500 rounded-full" />
+              )}
             </button>
+            <NotificationPanel isOpen={notifOpen} onClose={() => setNotifOpen(false)} />
           </div>
         </header>
 
