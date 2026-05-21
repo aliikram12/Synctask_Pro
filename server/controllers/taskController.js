@@ -52,6 +52,12 @@ const createTask = async (req, res, next) => {
 
     const populatedTask = await Task.findById(task._id).populate('assignees', 'name avatar');
     
+    // Emit real-time event via socket
+    const io = req.app.get('io');
+    if (io) {
+      io.to(workspaceId.toString()).emit('task_created', populatedTask);
+    }
+    
     res.status(201).json(populatedTask);
   } catch (error) {
     next(error);
@@ -91,6 +97,12 @@ const updateTask = async (req, res, next) => {
     const updatedTask = await task.save();
     const populatedTask = await Task.findById(updatedTask._id).populate('assignees', 'name avatar');
 
+    // Emit real-time event via socket
+    const io = req.app.get('io');
+    if (io) {
+      io.to(task.workspaceId.toString()).emit('task_updated', populatedTask);
+    }
+
     res.json(populatedTask);
   } catch (error) {
     next(error);
@@ -109,7 +121,17 @@ const deleteTask = async (req, res, next) => {
       throw new Error('Task not found');
     }
 
+    const workspaceIdStr = task.workspaceId.toString();
+    const taskId = task._id;
+
     await task.deleteOne();
+
+    // Emit real-time event via socket
+    const io = req.app.get('io');
+    if (io) {
+      io.to(workspaceIdStr).emit('task_deleted', taskId);
+    }
+
     res.json({ message: 'Task removed' });
   } catch (error) {
     next(error);
