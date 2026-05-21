@@ -26,17 +26,40 @@ Enterprise-level real-time collaborative task management — modern SaaS UI, off
 ### Prerequisites
 
 - Node.js 18+
-- MongoDB (local or [MongoDB Atlas](https://www.mongodb.com/atlas))
+- MongoDB — **Docker** (easiest) or [MongoDB Atlas](https://www.mongodb.com/atlas)
+
+### Start MongoDB (pick one)
+
+**Option A — Docker (recommended):**
+```bash
+# From project root
+docker compose up -d
+```
+
+**Option B — MongoDB Atlas:**  
+Create a free cluster, copy the connection string into `server/.env` as `MONGO_URI`.
 
 ### 1. Backend
 
 ```bash
 cd server
 cp .env.example .env
-# Edit .env — set MONGO_URI and JWT secrets
+# Edit .env if needed — JWT_SECRET, MONGO_URI
 npm install
 npm run dev
 ```
+
+You should see:
+```
+Connecting to MongoDB...
+MongoDB Connected: ...
+✅ Server running in development mode on port 5000
+```
+
+If the server crashes, read the error message — common fixes:
+- `Cannot connect to MongoDB` → start Docker (`docker compose up -d`) or fix `MONGO_URI`
+- `Missing required environment variables` → copy `.env.example` to `.env`
+- `Port 5000 is already in use` → stop the other process or set `PORT=5001` in `.env`
 
 API runs at `http://localhost:5000`
 

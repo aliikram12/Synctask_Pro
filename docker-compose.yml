@@ -1,0 +1,12 @@
+services:
+  mongodb:
+    image: mongo:7
+    container_name: synctask-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - synctask_mongo_data:/data/db
+
+volumes:
+  synctask_mongo_data:

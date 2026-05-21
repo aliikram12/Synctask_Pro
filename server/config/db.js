@@ -1,12 +1,28 @@
 const mongoose = require('mongoose');
 
 const connectDB = async () => {
+  const uri = process.env.MONGO_URI;
+
+  if (!uri) {
+    throw new Error(
+      'MONGO_URI is not set. Copy server/.env.example to server/.env and set your MongoDB connection string.'
+    );
+  }
+
   try {
-    const conn = await mongoose.connect(process.env.MONGO_URI);
+    const conn = await mongoose.connect(uri, {
+      serverSelectionTimeoutMS: 10000,
+    });
     console.log(`MongoDB Connected: ${conn.connection.host}`);
+    return conn;
   } catch (error) {
-    console.error(`Error connecting to MongoDB: ${error.message}`);
-    process.exit(1);
+    if (error.message?.includes('ECONNREFUSED') || error.name === 'MongooseServerSelectionError') {
+      throw new Error(
+        `Cannot connect to MongoDB at ${uri}\n` +
+          '→ Is MongoDB running locally? Start it or use MongoDB Atlas and update MONGO_URI in .env'
+      );
+    }
+    throw new Error(`MongoDB connection failed: ${error.message}`);
   }
 };
 
