@@ -1,26 +1,26 @@
 import { create } from 'zustand';
 import { db } from '../offline/db';
-import api from '../services/api';
+import * as taskService from '../services/taskService';
 
 const useTaskStore = create((set, get) => ({
   tasks: [],
   isLoading: false,
   error: null,
+  conflict: null,
 
-  fetchTasks: async (workspaceId) => {
+  clearConflict: () => set({ conflict: null }),
+
+  fetchTasks: async (workspaceId, filters = {}) => {
+    if (!workspaceId) return;
     set({ isLoading: true });
     try {
-      // 1. Load from IndexedDB first for instant UI
       const localTasks = await db.tasks.where('workspaceId').equals(workspaceId).toArray();
-      set({ tasks: localTasks });
+      if (localTasks.length) set({ tasks: localTasks });
 
-      // 2. Fetch from network
       if (navigator.onLine) {
-        const response = await api.get(`/tasks/workspace/${workspaceId}`);
+        const response = await taskService.fetchTasks(workspaceId, filters);
         const serverTasks = response.data;
-        
-        // 3. Update IndexedDB and Store
-        await db.tasks.bulkPut(serverTasks);
+        await db.tasks.bulkPut(serverTasks.map((t) => ({ ...t, workspaceId: t.workspaceId?.toString?.() || workspaceId })));
         set({ tasks: serverTasks, isLoading: false, error: null });
       } else {
         set({ isLoading: false });
@@ -31,79 +31,149 @@ const useTaskStore = create((set, get) => ({
   },
 
   addTask: async (taskData) => {
-    try {
-      // Optimistic update locally
-      const tempId = `temp_${Date.now()}`;
-      const newTask = { ...taskData, _id: tempId, status: taskData.status || 'Pending', version: 1 };
-      
-      set((state) => ({ tasks: [...state.tasks, newTask] }));
-      await db.tasks.put(newTask);
+    const tempId = `temp_${Date.now()}`;
+    const newTask = {
+      ...taskData,
+      _id: tempId,
+      status: taskData.status || 'Pending',
+      priority: taskData.priority || 'Medium',
+      version: 1,
+    };
 
-      if (navigator.onLine) {
-        const response = await api.post('/tasks', taskData);
-        const createdTask = response.data;
-        
-        // Replace temp task with real task
-        await db.tasks.delete(tempId);
-        await db.tasks.put(createdTask);
-        
-        set((state) => ({
-          tasks: state.tasks.map((t) => (t._id === tempId ? createdTask : t)),
-        }));
-      } else {
-        // Queue for offline sync
-        await db.syncQueue.add({
-          action: 'create',
-          payload: taskData,
-          tempId,
-          timestamp: Date.now(),
-        });
-      }
-    } catch (error) {
-      console.error('Add task error', error);
-      // Revert optimistic update here if needed
+    set((state) => ({ tasks: [...state.tasks, newTask] }));
+    await db.tasks.put(newTask);
+
+    if (navigator.onLine) {
+      const response = await taskService.createTask(taskData);
+      const createdTask = response.data;
+      await db.tasks.delete(tempId);
+      await db.tasks.put(createdTask);
+      set((state) => ({
+        tasks: state.tasks.map((t) => (t._id === tempId ? createdTask : t)),
+      }));
+      return createdTask;
     }
+
+    await db.syncQueue.add({
+      action: 'create',
+      payload: taskData,
+      tempId,
+      timestamp: Date.now(),
+    });
+    return newTask;
   },
 
-  updateTaskStatus: async (taskId, newStatus, currentTasks) => {
-    try {
-      // Optimistic update
-      const taskIndex = currentTasks.findIndex(t => t._id === taskId);
-      if (taskIndex === -1) return;
-      
-      const updatedTasks = [...currentTasks];
-      updatedTasks[taskIndex] = { ...updatedTasks[taskIndex], status: newStatus };
-      
-      set({ tasks: updatedTasks });
-      await db.tasks.update(taskId, { status: newStatus });
+  updateTask: async (taskId, updates) => {
+    const currentTasks = get().tasks;
+    const task = currentTasks.find((t) => t._id === taskId);
+    if (!task) return;
 
-      if (navigator.onLine) {
-        if (!taskId.startsWith('temp_')) {
-          await api.put(`/tasks/${taskId}`, { status: newStatus, version: updatedTasks[taskIndex].version });
+    const optimistic = { ...task, ...updates };
+    set({ tasks: currentTasks.map((t) => (t._id === taskId ? optimistic : t)) });
+    await db.tasks.put(optimistic);
+
+    if (navigator.onLine && !taskId.startsWith('temp_')) {
+      try {
+        const response = await taskService.updateTask(taskId, {
+          ...updates,
+          version: task.version,
+        });
+        const updated = response.data;
+        if (response.status === 409 || updated.serverTask) {
+          set({
+            conflict: {
+              taskId,
+              serverTask: updated.serverTask || updated,
+              localTask: optimistic,
+            },
+          });
+          return;
         }
-      } else {
-        await db.syncQueue.add({
-          action: 'update',
-          payload: { id: taskId, updates: { status: newStatus } },
-          timestamp: Date.now(),
-        });
+        await db.tasks.put(updated);
+        set((state) => ({
+          tasks: state.tasks.map((t) => (t._id === taskId ? updated : t)),
+        }));
+      } catch (err) {
+        if (err.response?.status === 409) {
+          set({
+            conflict: {
+              taskId,
+              serverTask: err.response.data?.serverTask,
+              localTask: optimistic,
+            },
+          });
+        }
+        throw err;
       }
-    } catch (error) {
-      console.error('Update status error', error);
+    } else {
+      await db.syncQueue.add({
+        action: 'update',
+        payload: { id: taskId, updates },
+        timestamp: Date.now(),
+      });
     }
   },
 
-  // Added for Socket.io real-time updates
+  updateTaskStatus: async (taskId, newStatus) => {
+    await get().updateTask(taskId, { status: newStatus });
+  },
+
+  deleteTask: async (taskId) => {
+    set((state) => ({ tasks: state.tasks.filter((t) => t._id !== taskId) }));
+    await db.tasks.delete(taskId);
+
+    if (navigator.onLine && !taskId.startsWith('temp_')) {
+      await taskService.deleteTask(taskId);
+    } else {
+      await db.syncQueue.add({
+        action: 'delete',
+        payload: { id: taskId },
+        timestamp: Date.now(),
+      });
+    }
+  },
+
+  resolveConflict: async (useServer) => {
+    const { conflict } = get();
+    if (!conflict) return;
+
+    if (useServer && conflict.serverTask) {
+      await db.tasks.put(conflict.serverTask);
+      set((state) => ({
+        tasks: state.tasks.map((t) =>
+          t._id === conflict.taskId ? conflict.serverTask : t
+        ),
+        conflict: null,
+      }));
+    } else {
+      await get().updateTask(conflict.taskId, {
+        ...conflict.localTask,
+        version: conflict.serverTask?.version,
+      });
+      set({ conflict: null });
+    }
+  },
+
   handleRealtimeTaskUpdate: async (updatedTask) => {
     set((state) => {
-      const exists = state.tasks.some(t => t._id === updatedTask._id);
+      const exists = state.tasks.some((t) => t._id === updatedTask._id);
       if (exists) {
-        return { tasks: state.tasks.map(t => t._id === updatedTask._id ? updatedTask : t) };
+        return { tasks: state.tasks.map((t) => (t._id === updatedTask._id ? updatedTask : t)) };
       }
       return { tasks: [...state.tasks, updatedTask] };
     });
     await db.tasks.put(updatedTask);
-  }
+  },
+
+  removeTask: (taskId) => {
+    set((state) => ({ tasks: state.tasks.filter((t) => t._id !== taskId) }));
+    db.tasks.delete(taskId);
+  },
 }));
+
+window.addEventListener('sync:completed', () => {
+  const wsId = window.__activeWorkspaceId;
+  if (wsId) useTaskStore.getState().fetchTasks(wsId);
+});
 
 export default useTaskStore;

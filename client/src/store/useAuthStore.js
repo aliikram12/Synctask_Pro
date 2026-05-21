@@ -1,21 +1,44 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { getProfile, refreshSession, logout as logoutApi } from '../services/authService';
 
 const useAuthStore = create(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       isAuthenticated: false,
-      setAuth: (user) => set({ user, isAuthenticated: true }),
-      logout: () => set({ user: null, isAuthenticated: false }),
+      isBootstrapping: true,
+
+      setAuth: (user) => set({ user, isAuthenticated: true, isBootstrapping: false }),
+
+      bootstrap: async () => {
+        try {
+          const res = await getProfile();
+          set({ user: res.data, isAuthenticated: true, isBootstrapping: false });
+          return true;
+        } catch {
+          try {
+            const res = await refreshSession();
+            set({ user: res.data, isAuthenticated: true, isBootstrapping: false });
+            return true;
+          } catch {
+            set({ user: null, isAuthenticated: false, isBootstrapping: false });
+            return false;
+          }
+        }
+      },
+
+      logout: async () => {
+        try {
+          await logoutApi();
+        } catch {}
+        set({ user: null, isAuthenticated: false });
+      },
     }),
-    {
-      name: 'auth-storage', // name of item in the storage (must be unique)
-    }
+    { name: 'auth-storage', partialize: (state) => ({ user: state.user, isAuthenticated: state.isAuthenticated }) }
   )
 );
 
-// Listen to global 401 unauthorized events
 window.addEventListener('auth:unauthorized', () => {
   useAuthStore.getState().logout();
 });
