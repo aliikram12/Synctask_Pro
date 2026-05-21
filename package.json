@@ -2,13 +2,12 @@
   "name": "synctask-pro",
   "version": "1.0.0",
   "private": true,
-  "description": "SyncTask Pro - Full stack collaborative task management",
+  "description": "Enterprise real-time collaborative task management",
   "scripts": {
-    "dev:server": "npm run dev --prefix server",
-    "dev:client": "npm run dev --prefix client",
-    "build:client": "npm run build --prefix client",
-    "test:server": "npm test --prefix server",
-    "test:client": "npm test --prefix client",
-    "install:all": "npm install --prefix server && npm install --prefix client"
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "install:all": "cd server && npm install && cd ../client && npm install",
+    "build": "cd client && npm run build",
+    "test": "cd server && npm test && cd ../client && npm test"
   }
 }

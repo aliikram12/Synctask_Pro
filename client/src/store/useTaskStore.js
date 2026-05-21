@@ -176,4 +176,17 @@ window.addEventListener('sync:completed', () => {
   if (wsId) useTaskStore.getState().fetchTasks(wsId);
 });
 
+window.addEventListener('sync:conflict', (e) => {
+  const data = e.detail;
+  if (data?.serverTask) {
+    useTaskStore.setState({
+      conflict: {
+        taskId: data.serverTask._id,
+        serverTask: data.serverTask,
+        localTask: data.serverTask,
+      },
+    });
+  }
+});
+
 export default useTaskStore;

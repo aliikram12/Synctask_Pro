@@ -1,144 +1,151 @@
 # SyncTask Pro
 
-![SyncTask Pro](https://via.placeholder.com/1200x600?text=SyncTask+Pro+-+Enterprise+Task+Management)
-
-SyncTask Pro is a FULL STACK enterprise-level real-time collaborative task management web application. It features a modern SaaS-style interface, robust offline-first capabilities, and instantaneous real-time collaboration.
+Enterprise-level real-time collaborative task management — modern SaaS UI, offline-first sync, JWT auth, and Socket.IO live collaboration.
 
 ## Features
 
-- **Authentication System**: Secure JWT-based auth with HttpOnly cookies, bcrypt hashing, and persistent sessions.
-- **Beautiful Dashboard**: Glassmorphism UI, animated statistics, and responsive grid layouts using Tailwind CSS v4 and Framer Motion.
-- **Task Management**: Create, edit, and drag-and-drop tasks across a Kanban board. Features include priorities, labels, and due dates.
-- **Real-Time Collaboration**: Instantaneous updates across all clients using Socket.IO (under 500ms propagation delay).
-- **Offline-First Architecture**: View, create, and edit tasks completely offline. Changes are queued and automatically synchronized when the connection is restored.
-- **Role-Based Permissions**: Workspace owners, admins, and members with specific capabilities.
-- **Accessibility**: Built following WCAG 2.1 AA standards (keyboard navigation, ARIA labels, semantic HTML).
+- **Authentication** — Sign up, login, logout, JWT cookies, refresh tokens, persistent sessions
+- **Dashboard** — Live stats, status breakdown, recent activity feed
+- **Kanban tasks** — Drag-and-drop, priorities, labels, due dates, search & filters
+- **Real-time** — Instant task sync, presence, typing indicators, notifications (<500ms target)
+- **Offline-first** — IndexedDB (Dexie), mutation queue, auto-sync on reconnect, conflict UI
+- **Team** — Invite members, roles (owner/admin/member), online presence
+- **Accessibility** — Semantic HTML, ARIA labels, keyboard focus, WCAG-oriented contrast
+- **PWA** — Web manifest + service worker for cached shell
 
 ## Tech Stack
 
-**Frontend:**
-- React.js (Vite + SWC)
-- Zustand (State Management)
-- Tailwind CSS v4 + Framer Motion
-- @hello-pangea/dnd (Drag and Drop)
-- React Hook Form + Zod
-- Dexie.js (IndexedDB for offline storage)
-- Socket.IO Client
+| Layer | Stack |
+|-------|--------|
+| Frontend | React 19, Vite 8, Zustand, TanStack Query, Tailwind v4, Framer Motion, Socket.IO Client, Dexie |
+| Backend | Node.js, Express 5, MongoDB/Mongoose, Socket.IO, JWT, Bcrypt, Helmet, Zod |
+| Testing | Vitest, React Testing Library, Jest, Supertest |
 
-**Backend:**
-- Node.js + Express.js
-- MongoDB + Mongoose
-- Socket.IO
-- JWT + Bcrypt
-- Helmet + Express Rate Limit
-- Zod (API Validation)
+## Quick Start
 
-## Installation Steps
+### Prerequisites
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/yourusername/synctask-pro.git
-   cd synctask-pro
-   ```
+- Node.js 18+
+- MongoDB (local or [MongoDB Atlas](https://www.mongodb.com/atlas))
 
-2. **Backend Setup:**
-   ```bash
-   cd server
-   npm install
-   # Create a .env file based on the environment variables below
-   npm run dev
-   ```
+### 1. Backend
 
-3. **Frontend Setup:**
-   ```bash
-   cd ../client
-   npm install
-   # Create a .env file if needed
-   npm run dev
-   ```
+```bash
+cd server
+cp .env.example .env
+# Edit .env — set MONGO_URI and JWT secrets
+npm install
+npm run dev
+```
+
+API runs at `http://localhost:5000`
+
+### 2. Frontend
+
+```bash
+cd client
+cp .env.example .env
+npm install
+npm run dev
+```
+
+App runs at `http://localhost:5173` (API proxied via Vite)
+
+### Root scripts
+
+```bash
+npm run install:all   # install both packages
+npm run dev:server
+npm run dev:client
+npm run build
+npm run test
+```
 
 ## Environment Variables
 
 ### Backend (`server/.env`)
+
 ```env
 PORT=5000
 NODE_ENV=development
 MONGO_URI=mongodb://localhost:27017/synctask-pro
-JWT_SECRET=super_secret_jwt_key_change_in_production
-JWT_EXPIRES_IN=30d
+JWT_SECRET=your_long_secret
+JWT_REFRESH_SECRET=your_refresh_secret
+JWT_EXPIRES_IN=1d
+JWT_REFRESH_EXPIRES_IN=30d
 FRONTEND_URL=http://localhost:5173
 ```
 
 ### Frontend (`client/.env`)
+
 ```env
 VITE_API_URL=http://localhost:5000/api
+VITE_SOCKET_URL=http://localhost:5000
 ```
 
-## Offline Sync & Conflict Resolution Strategy
+For production, set `VITE_API_URL` to your deployed API (e.g. `https://api.example.com/api`).
 
-SyncTask Pro employs a robust offline-first architecture to ensure users can work without interruption.
+## Offline Sync & Conflict Resolution
 
-**How it works:**
-1. **Local Writes**: All actions (create, update, delete) are immediately written to IndexedDB (via Dexie.js) to provide an instant UI response.
-2. **Mutation Queue**: If the user is offline, the action is logged in a `syncQueue` table within IndexedDB.
-3. **Auto-Sync**: An event listener monitors `navigator.onLine`. When the connection is restored, the `syncEngine` processes the queue sequentially.
+1. **Local writes** — Tasks are written to IndexedDB immediately (optimistic UI).
+2. **Offline queue** — Mutations are stored in `syncQueue` when offline.
+3. **Reconnect** — `syncEngine` replays the queue against the REST API.
+4. **Versioning** — Each task has a `version` field incremented on save.
+5. **Conflicts** — If client version < server version → `409` → **ConflictModal** lets users pick server or local copy.
 
-**Conflict Resolution (Version Tracking):**
-- Every task has a `version` integer.
-- The backend compares the incoming task version with the database version.
-- **Strategy**: If `incoming_version < db_version`, the server returns a `409 Conflict`. The UI then prompts the user to refresh and manually merge their changes, preventing accidental overwriting of another user's progress.
+## API Overview
 
-## Security Practices
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/users` | Register |
+| POST | `/api/users/auth` | Login |
+| POST | `/api/users/logout` | Logout |
+| POST | `/api/users/refresh` | Refresh access token |
+| GET | `/api/users/profile` | Current user (protected) |
+| GET/POST | `/api/workspaces` | List / create workspaces |
+| GET | `/api/tasks/workspace/:id` | Tasks (query: status, priority, search, sort) |
+| GET | `/api/tasks/stats/:workspaceId` | Dashboard stats |
+| POST/PUT/DELETE | `/api/tasks` | CRUD tasks |
+| GET | `/api/notifications` | User notifications |
+| POST | `/api/collaboration/invite` | Invite member |
+| GET | `/api/collaboration/members/:id` | Team members |
+| GET | `/api/collaboration/activity/:id` | Activity log |
 
-- **Helmet**: Secures HTTP headers against common vulnerabilities.
-- **CORS**: Strictly configured to only allow requests from the designated frontend URL.
-- **Rate Limiting**: Protects against brute-force attacks (especially on authentication endpoints).
-- **HttpOnly Cookies**: Prevents XSS attacks by ensuring JWT tokens cannot be accessed via JavaScript.
-- **Input Validation**: Zod schemas sanitize and validate all incoming requests to prevent NoSQL injection and malformed data.
+## Testing
 
-## API Documentation
-
-- `POST /api/users` - Register a new user
-- `POST /api/users/auth` - Login user
-- `GET /api/users/profile` - Get current user profile (Protected)
-- `POST /api/users/logout` - Logout (Clears cookie)
-
-- `GET /api/workspaces` - Get user's workspaces (Protected)
-- `POST /api/workspaces` - Create a workspace (Protected)
-
-- `GET /api/tasks/workspace/:id` - Get all tasks in a workspace (Protected)
-- `POST /api/tasks` - Create a task (Protected)
-- `PUT /api/tasks/:id` - Update a task (Protected)
-- `DELETE /api/tasks/:id` - Delete a task (Protected)
-
-## Testing Instructions
-
-### Backend
 ```bash
-cd server
-npm test
-```
-*Note: Ensure your MongoDB test instance is running.*
+# Backend
+cd server && npm test
 
-### Frontend
-```bash
-cd client
-npm run test
+# Frontend
+cd client && npm test
 ```
 
-## Lighthouse Performance
+## Deployment
 
-*(Placeholder for Lighthouse scores once deployed to production)*
-- **Performance:** 95+
-- **Accessibility:** 100
-- **Best Practices:** 100
-- **SEO:** 100
+- **Frontend** — Vercel/Netlify: root `client`, build `npm run build`, output `dist`. Set `VITE_API_URL`.
+- **Backend** — Render/Railway: root `server`, start `npm start`. See `server/render.yaml`.
+- **Database** — MongoDB Atlas connection string in `MONGO_URI`.
 
-## Deployment Guide
+## Project Structure
 
-1. **Frontend (Vercel):** Connect your GitHub repository to Vercel and set the build command to `npm run build` and output directory to `dist`. Add the `VITE_API_URL` environment variable.
-2. **Backend (Render):** Connect your repository to Render as a Web Service. Set the root directory to `server`, start command to `npm start`. Add all environment variables including the production MongoDB URI.
-3. **Database:** Use MongoDB Atlas for a managed, scalable database cluster.
+```
+Synctask_Pro/
+├── client/src/
+│   ├── components/   # UI, TaskCard, modals
+│   ├── pages/        # Dashboard, Tasks, Team, Settings
+│   ├── store/        # Zustand stores
+│   ├── services/     # API layer
+│   ├── sockets/      # Socket.IO client
+│   └── offline/      # Dexie + sync engine
+└── server/
+    ├── controllers/
+    ├── models/
+    ├── routes/
+    ├── sockets/
+    └── middleware/
+```
 
 ## AI Disclosure
-Parts of this application were generated and architected with the assistance of advanced AI coding agents to ensure best practices, rapid prototyping, and robust architecture patterns.
+
+Parts of this application were architected and implemented with AI coding assistance to accelerate delivery while following production patterns for security, offline sync, and real-time collaboration.

@@ -1,18 +1,22 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import useAuthStore from '../store/useAuthStore';
 
-describe('Auth store logic', () => {
+describe('useAuthStore', () => {
   beforeEach(() => {
-    localStorage.clear();
+    useAuthStore.setState({ user: null, isAuthenticated: false, isBootstrapping: false });
   });
 
-  it('persists user to localStorage', () => {
+  it('sets auth user', () => {
     const user = { _id: '1', name: 'Test', email: 't@test.com' };
-    localStorage.setItem(
-      'auth-storage',
-      JSON.stringify({ state: { user, isAuthenticated: true }, version: 0 })
-    );
-    const stored = JSON.parse(localStorage.getItem('auth-storage'));
-    expect(stored.state.isAuthenticated).toBe(true);
-    expect(stored.state.user.email).toBe('t@test.com');
+    useAuthStore.getState().setAuth(user);
+    expect(useAuthStore.getState().isAuthenticated).toBe(true);
+    expect(useAuthStore.getState().user).toEqual(user);
+  });
+
+  it('clears auth on logout', async () => {
+    useAuthStore.getState().setAuth({ _id: '1', name: 'Test', email: 't@test.com' });
+    await useAuthStore.getState().logout();
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+    expect(useAuthStore.getState().user).toBeNull();
   });
 });

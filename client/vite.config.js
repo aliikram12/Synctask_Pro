@@ -16,10 +16,12 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom', 'react-router-dom'],
-          motion: ['framer-motion'],
-          dnd: ['@hello-pangea/dnd'],
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('framer-motion')) return 'motion';
+            if (id.includes('@hello-pangea')) return 'dnd';
+            if (id.includes('react') || id.includes('router')) return 'vendor';
+          }
         },
       },
     },
